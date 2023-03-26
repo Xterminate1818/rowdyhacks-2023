@@ -1,6 +1,7 @@
+use format_num::NumberFormat;
 use raylib::prelude::*;
 
-use crate::view::FractalView;
+use crate::view::{FractalView, PixelGrid};
 
 pub struct App {
   pub handle: RaylibHandle,
@@ -8,18 +9,18 @@ pub struct App {
   pub win_width: usize,
   pub win_height: usize,
   pub view: FractalView,
-  pub pix_array: Vec<Color>,
+  pub pix_array: PixelGrid,
 }
 
 impl App {
-  pub fn new(win_width: usize, win_height: usize, pix_size: usize) -> Self {
+  pub fn new(win_width: usize, win_height: usize) -> Self {
     let (handle, thread) = raylib::init()
       .size(win_width as i32, win_height as i32)
       .title("Fractal Explorer")
       .build();
-    let pix_width = win_width / pix_size;
-    let pix_height = win_height / pix_size;
-    let mut ret = Self {
+    let pix_width = win_width;
+    let pix_height = win_height;
+    Self {
       handle,
       thread,
       win_width,
@@ -27,21 +28,16 @@ impl App {
       view: FractalView {
         center_x: -1.745319884878,
         center_y: -0.000000978082,
+        // center_x: 0.0,
+        // center_y: 0.0,
         pix_width: win_width as i32,
         pix_height: win_height as i32,
-        zoom: 1000000000000.0,
-        iterations: 10000,
+        zoom: 100.0,
+        iterations: 255,
+        threads: 8,
       },
-      pix_array: vec![Color::BLACK; pix_width * pix_height],
-    };
-    ret.pix_array = ret.view.generate_par();
-    ret
-  }
-
-  pub fn set_pixel(&mut self, x: i32, y: i32, color: Color) {
-    let normal_x = x.rem_euclid(self.view.pix_width) as usize;
-    let normal_y = y.rem_euclid(self.view.pix_height) as usize;
-    self.pix_array[normal_y * self.view.pix_height as usize + normal_x] = color;
+      pix_array: PixelGrid::new(pix_width, pix_height),
+    }
   }
 
   pub fn run(&mut self) {
@@ -51,23 +47,85 @@ impl App {
   }
 
   pub fn handle_input(&mut self) -> bool {
+    let mut state_changed = false;
+    let mut isp = |key: KeyboardKey| {
+      let temp = self.handle.is_key_pressed(key);
+      state_changed |= temp;
+      temp
+    };
+    use KeyboardKey::*;
+    // Zoom
+    if isp(KEY_Q) {
+      self.view.zoom *= 10.0;
+    }
+    if isp(KEY_A) {
+      self.view.zoom *= 0.1;
+    }
+    // Iterations
+    if isp(KEY_W) {
+      self.view.iterations += 500;
+    }
+    if isp(KEY_S) {
+      self.view.iterations = (self.view.iterations + 500).clamp(500, i32::MAX);
+    }
+    // Threads
+    if isp(KEY_E) {
+      self.view.threads = (self.view.threads * 2).clamp(1, 8);
+    }
+    if isp(KEY_D) {
+      self.view.threads = (self.view.threads / 2).clamp(1, 8);
+    }
+
+    if isp(KEY_ENTER) || state_changed {
+      self.pix_array = self.view.generate();
+    }
+
     !self.handle.window_should_close()
   }
 
   pub fn draw_screen(&mut self) {
     let mut d = self.handle.begin_drawing(&self.thread);
     d.clear_background(Color::BLACK);
-    for x in 0..self.view.pix_width as usize {
-      for y in 0..self.view.pix_height as usize {
-        let color = self.pix_array[y * self.view.pix_height as usize + x];
-        d.draw_pixel(x as i32, y as i32, color);
+    // Draw selection box
+    // Draw pixels
+    for x in 0..self.view.pix_width {
+      for y in 0..self.view.pix_height {
+        let color = self.pix_array.get(x, y);
+        d.draw_pixel(x, y, color);
       }
     }
+    // Draw UI text
+    let num = NumberFormat::new();
+    let t_color = Color::GREEN;
+    let t_size = 20;
+    d.draw_text(&format!("FPS: {}", d.get_fps()), 0, 0, t_size, t_color);
+    d.draw_text(
+      &format!("Zoom: {}", num.format("0.1e", self.view.zoom)),
+      0,
+      t_size,
+      t_size,
+      t_color,
+    );
+    d.draw_text(
+      &format!("Passes: {}", self.view.iterations),
+      0,
+      t_size * 2,
+      t_size,
+      t_color,
+    );
+
+    d.draw_text(
+      &format!("Threads: {}", self.view.threads),
+      0,
+      t_size * 3,
+      t_size,
+      t_color,
+    );
   }
 }
 
 impl Default for App {
   fn default() -> Self {
-    Self::new(600, 600, 1)
+    Self::new(600, 600)
   }
 }

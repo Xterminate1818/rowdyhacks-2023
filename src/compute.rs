@@ -1,39 +1,24 @@
-use num::rational::BigRational;
-use num::Complex;
-use num::FromPrimitive;
-use num::ToPrimitive;
-
-pub type BigComplex = Complex<f64>;
-
-pub fn fractal_iterate(val: BigComplex, constant: BigComplex) -> BigComplex {
-  let sq = val.powi(2);
-  sq + constant
+pub struct MyComplex {
+  pub re: f64,
+  pub im: f64,
 }
 
-pub fn f64_bc(re: f64, im: f64) -> BigComplex {
-  // let new_re = Ratio::<i128>::from_f64(re).unwrap();
-  // let new_im = Ratio::<i128>::from_f64(im).unwrap();
-  BigComplex::new(re, im)
+impl MyComplex {
+  pub fn new(re: f64, im: f64) -> Self {
+    Self { re, im }
+  }
 }
 
-pub fn f64_rat(frac: f64) -> BigRational {
-  BigRational::from_f64(frac).unwrap()
-}
-
-pub fn complex_abs(val: &BigComplex) -> f64 {
-  val.norm_sqr().to_f64().unwrap()
-}
-
-pub fn iterate(last: BigComplex, constant: BigComplex) -> BigComplex {
-  last.powi(2) + constant
-}
-
-pub fn get_fractal(val: BigComplex, max_it: i32) -> i32 {
+pub fn get_fractal(val: MyComplex, max_it: i32) -> i32 {
   let mut it = 0;
-
-  let mut last = f64_bc(0.0, 0.0);
-  while it < max_it && complex_abs(&last) <= 4.0 {
-    last = iterate(last, val);
+  let mut last = MyComplex::new(0.0, 0.0);
+  let mut squared = MyComplex::new(0.0, 0.0);
+  while squared.re + squared.im <= 4.0 && it < max_it {
+    let im = 2.0 * last.re * last.im + val.im;
+    let re = squared.re - squared.im + val.re;
+    last = MyComplex::new(re, im);
+    squared.re = re.powi(2);
+    squared.im = im.powi(2);
     it += 1;
   }
   it
