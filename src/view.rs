@@ -1,8 +1,6 @@
-use std::thread::{self, JoinHandle};
-
+use crate::compute::{get_dbail, get_fractal, MyComplex};
 use raylib::prelude::Color;
-
-use crate::compute::{get_fractal, MyComplex};
+use std::thread::{self, JoinHandle};
 
 pub struct PixelGrid {
   pub data: Vec<Color>,
@@ -52,7 +50,7 @@ impl FractalView {
       let complex = MyComplex::new(scaled_x, scaled_y);
       let frac_value = get_fractal(complex, self.iterations);
       let normal_value = (frac_value as f64 / self.iterations as f64) * 255.0;
-      ret.push(Color::new(255, 255, 255, normal_value as u8));
+      ret.push(Color::color_from_hsv(normal_value as f32 * 2.0, 1.0, 1.0));
     }
     PixelGrid {
       data: ret,
@@ -66,33 +64,31 @@ impl FractalView {
 
     let width = self.pix_width;
     let height = self.pix_height;
-
     let half_width = width / 2;
     let half_height = height / 2;
-
     let center_x = self.center_x;
     let center_y = self.center_y;
-
     let subdivisions = self.threads;
-
     let zoom = self.zoom;
     let size = self.pix_width * self.pix_height / subdivisions;
     let iterations = self.iterations;
 
     // God my head hurts
     let mut handles: Vec<JoinHandle<Vec<Color>>> = vec![];
-    for h in 0..subdivisions {
+    for thread_id in 0..subdivisions {
+      // Spawn thread for each subdivision
       handles.push(thread::spawn(move || -> Vec<Color> {
         let mut ret: Vec<Color> = vec![];
         for index in 0..size {
           let x = index.rem_euclid(width) - half_width;
           let scaled_x = x as f64 / zoom + center_x;
-          let y =
-            ((index / height) + (h * height / subdivisions)) - half_height;
+          let y = ((index / height) + (thread_id * height / subdivisions))
+            - half_height;
           let scaled_y = y as f64 / zoom + center_y;
           let complex = MyComplex::new(scaled_x, scaled_y);
-          let frac_value = get_fractal(complex, iterations);
+          let frac_value = get_dbail(complex, 100.0, iterations);
           let normal_value = (frac_value as f64 / iterations as f64) * 255.0;
+          // println!("{index}/{size}");
           ret.push(Color::new(255, 255, 255, normal_value as u8));
         }
         ret
